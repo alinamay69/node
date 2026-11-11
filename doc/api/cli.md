@@ -297,8 +297,10 @@ The valid arguments for the `--allow-fs-read` flag are:
 
 Examples can be found in the [File System Permissions][] documentation.
 
-The initializer module and custom `--require` modules has a implicit
-read permission.
+The initializer module and custom `--require` modules have an implicit
+read permission. The entrypoint is granted as passed on the command line,
+without the module loader's resolution; see the [File System Permissions][]
+documentation for details.
 
 ```console
 $ node --permission -r custom-require.js -r custom-require-2.js index.js
@@ -718,6 +720,10 @@ runtime, using either [`v8.startupSnapshot.setDeserializeMainFunction()`][] or
 an additional module during the snapshot building process is needed,
 please file a request in the [Node.js issue tracker][] and link to it in the
 [tracking issue for user-land snapshots][].
+
+During snapshot building, a debugger cannot be attached to the process.
+`--build-snapshot` cannot be used together with `--inspect`, `--inspect-brk` or
+`--inspect-wait`.
 
 ### `--build-snapshot-config`
 
@@ -1226,8 +1232,9 @@ priority than `--dns-result-order`.
 added: v6.0.0
 -->
 
-Enable [FIPS mode][] at startup. A configured provider named `fips` must be
-available and initialize successfully.
+Enable [FIPS mode][] at startup by adding `fips=yes` to OpenSSL's default
+property query. This does not load or validate a FIPS provider or run its
+self-tests. Configure OpenSSL to load the provider separately.
 
 ### `--enable-fips-indicator-events`
 
@@ -1801,7 +1808,8 @@ changes:
 -->
 
 Enable [FIPS mode][] at startup and prevent it from being disabled from script
-code. The same OpenSSL requirements as [`--enable-fips`][] apply.
+code. This changes the default property query as described for
+[`--enable-fips`][].
 
 An optional mode can be specified using `--force-fips=mode`:
 
@@ -3990,9 +3998,9 @@ comes from anywhere else, such as the real file system, needs nothing added.
 the command line's decision, and the environment must not be able to redirect
 it.
 
-A [single executable application][] built with `"vfsArchive"` mounts that
-archive at the mount point reserved for `--vfs-load`, so `--vfs-load` cannot be
-used in it.
+`--vfs-load` cannot be used in a [single executable application][]: its entry
+point is the `"main"` it was built with, and with `"useVfs"` its own virtual
+file system is mounted at the mount point reserved for `--vfs-load`.
 
 ```console
 $ node --vfs-load=app.zip
@@ -4080,10 +4088,6 @@ and is incompatible with `--run`, as `--run` takes precedence and ignores watch 
 ```bash
 node --watch-path=./src --watch-path=./tests index.js
 ```
-
-This option is only supported on macOS and Windows.
-An `ERR_FEATURE_UNAVAILABLE_ON_PLATFORM` exception will be thrown
-when the option is used on a platform that does not support it.
 
 ### `--watch-preserve-output`
 

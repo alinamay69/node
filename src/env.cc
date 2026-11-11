@@ -1111,7 +1111,9 @@ Environment::Environment(IsolateData* isolate_data,
   if (options_->permission || options_->permission_audit) {
     permission()->EnablePermissions();
     static const std::array args = {std::string("*")};
-    if (options_->permission_audit) {
+    // --permission takes precedence over --permission-audit.
+    const bool audit_only = options_->permission_audit && !options_->permission;
+    if (audit_only) {
       permission()->EnableWarningOnly();
     }
     // The process shouldn't be able to neither
@@ -1121,7 +1123,7 @@ Environment::Environment(IsolateData* isolate_data,
       // In audit mode addon loading must stay enabled: the denial is
       // published through the diagnostics channel by the permission
       // check in DLOpen() instead of being rejected upfront.
-      if (!options_->permission_audit) {
+      if (!audit_only) {
         options_->allow_native_addons = false;
       }
       permission()->Apply(this, args, permission::PermissionScope::kAddon);
@@ -1393,7 +1395,9 @@ void Environment::InitializeCompileCache() {
 }
 
 CompileCacheEnableResult Environment::EnableCompileCache(
-    const std::string& cache_dir, EnableOption option) {
+    const std::string& cache_dir,
+    EnableOption option,
+    const std::string& key_root) {
   CompileCacheEnableResult result;
   std::string disable_env;
   if (credentials::SafeGetenv(
@@ -1410,7 +1414,7 @@ CompileCacheEnableResult Environment::EnableCompileCache(
   if (!compile_cache_handler_) {
     std::unique_ptr<CompileCacheHandler> handler =
         std::make_unique<CompileCacheHandler>(this);
-    result = handler->Enable(this, cache_dir, option);
+    result = handler->Enable(this, cache_dir, option, key_root);
     if (result.status == CompileCacheEnableStatus::ENABLED) {
       compile_cache_handler_ = std::move(handler);
       AtExit(

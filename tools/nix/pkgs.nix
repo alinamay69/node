@@ -1,10 +1,10 @@
 arg:
 let
   repo = "https://github.com/NixOS/nixpkgs";
-  rev = "901c54c08bdc20e00c2b3c73716b97497b1b3c74";
+  rev = "085af13c1607f4f73ab1e7a51071faf6577a7e87";
   nixpkgs = import (builtins.fetchTarball {
     url = "${repo}/archive/${rev}.tar.gz";
-    sha256 = "0bicjz6w8n0ahwxxj837rbg494siw57vfk7ff3w8v3gvnykzxlia";
+    sha256 = "0wwdfxvwc19qymmjshf8qzw39dqyav1kgxna2ady9l7akqzanm1i";
   }) arg;
 in
 # Unstable channel no longer supports Intel architecture for macOS. We can use the 26.05 channel
@@ -38,10 +38,4 @@ else
           Cflags: -I${lib.getInclude boringssl}/include
         '';
       };
-
-    # TODO: remove pin once https://github.com/mozilla/sccache/issues/2869 is resolved
-    sccache = nixpkgs.callPackage (builtins.fetchurl {
-      url = "${repo}/raw/aff8a0b28396750446e5537a96461bc4facdb287/pkgs/by-name/sc/sccache/package.nix";
-      sha256 = "09dlc99sam9ld9jvzgcc00r4v4ls1cmbb0yim3mr895fpbs8b3qa";
-    }) { };
   }

@@ -939,16 +939,10 @@ void AfterMkdirp(uv_fs_t* req) {
     std::string first_path(req_wrap->continuation_data()->first_path());
     if (first_path.empty())
       return req_wrap->Resolve(Undefined(req_wrap->env()->isolate()));
-    Local<Value> path;
-    TryCatch try_catch(req_wrap->env()->isolate());
-    if (!StringBytes::Encode(req_wrap->env()->isolate(),
-                             first_path.c_str(),
-                             req_wrap->encoding())
-             .ToLocal(&path)) {
-      CHECK(try_catch.CanContinue());
-      return req_wrap->Reject(try_catch.Exception());
-    }
-    return req_wrap->Resolve(path);
+    ResolveOrReject(req_wrap, [&]() {
+      return StringBytes::Encode(
+          req_wrap->env()->isolate(), first_path.c_str(), req_wrap->encoding());
+    });
   }
 }
 
@@ -957,19 +951,11 @@ void AfterStringPath(uv_fs_t* req) {
   FSReqAfterScope after(req_wrap, req);
   FS_ASYNC_TRACE_END1(
       req->fs_type, req_wrap, "result", static_cast<int>(req->result))
-  MaybeLocal<Value> link;
-
   if (after.Proceed()) {
-    TryCatch try_catch(req_wrap->env()->isolate());
-    link = StringBytes::Encode(
-        req_wrap->env()->isolate(), req->path, req_wrap->encoding());
-    if (link.IsEmpty()) {
-      CHECK(try_catch.CanContinue());
-      req_wrap->Reject(try_catch.Exception());
-    } else {
-      Local<Value> val;
-      if (link.ToLocal(&val)) req_wrap->Resolve(val);
-    }
+    ResolveOrReject(req_wrap, [&]() {
+      return StringBytes::Encode(
+          req_wrap->env()->isolate(), req->path, req_wrap->encoding());
+    });
   }
 }
 
@@ -978,20 +964,12 @@ void AfterStringPtr(uv_fs_t* req) {
   FSReqAfterScope after(req_wrap, req);
   FS_ASYNC_TRACE_END1(
       req->fs_type, req_wrap, "result", static_cast<int>(req->result))
-  MaybeLocal<Value> link;
-
   if (after.Proceed()) {
-    TryCatch try_catch(req_wrap->env()->isolate());
-    link = StringBytes::Encode(req_wrap->env()->isolate(),
-                               static_cast<const char*>(req->ptr),
-                               req_wrap->encoding());
-    if (link.IsEmpty()) {
-      CHECK(try_catch.CanContinue());
-      req_wrap->Reject(try_catch.Exception());
-    } else {
-      Local<Value> val;
-      if (link.ToLocal(&val)) req_wrap->Resolve(val);
-    }
+    ResolveOrReject(req_wrap, [&]() {
+      return StringBytes::Encode(req_wrap->env()->isolate(),
+                                 static_cast<const char*>(req->ptr),
+                                 req_wrap->encoding());
+    });
   }
 }
 
@@ -2746,14 +2724,9 @@ class ReadDirRecursiveRequest {
                                           walk_.error_path().c_str()));
     }
 
-    Local<Value> value;
-    TryCatch try_catch(isolate);
-    if (!MarshalRecursiveReadDir(isolate, walk_, encoding_, with_types_)
-             .ToLocal(&value)) {
-      CHECK(try_catch.CanContinue());
-      return req_wrap->Reject(try_catch.Exception());
-    }
-    req_wrap->Resolve(value);
+    ResolveOrReject(req_wrap.get(), [&]() {
+      return MarshalRecursiveReadDir(isolate, walk_, encoding_, with_types_);
+    });
   }
 
  private:
@@ -3552,9 +3525,10 @@ static void ReadFileUtf8(const FunctionCallbackInfo<Value>& args) {
       if (static_cast<size_t>(r) < sizeof(buffer)) {
         continue;
       }
-      // Switch to the heap buffer.
+      // Switch to the heap buffer. A pipe can deliver more than kMinChunk in
+      // short reads before the first full one.
       uv_fs_req_cleanup(&req);
-      big_cap = kMinChunk;
+      big_cap = std::max(kMinChunk, result.size());
       big = UncheckedMalloc<char>(big_cap);
       if (big == nullptr) {
         FS_SYNC_TRACE_END(read);
@@ -3613,18 +3587,19 @@ static void ReadFileUtf8(const FunctionCallbackInfo<Value>& args) {
 // read + close -- instead of one round trip per step, which is what dominates
 // fs.readFile() for the typical small file and multiplies thread pool
 // contention when many files are read at once. Files whose size exceeds
-// `limit` are not read here: the job hands the open fd and the size back so
-// that the caller continues with the chunked reader (which stays fair and
-// abortable for large files); it then only saved the fstat() round trip.
+// `limit`, and files that are not regular files (a FIFO or a device may never
+// reach EOF), are not read here: the job hands the open fd and the size back
+// so that the caller continues with the chunked reader (which stays fair and
+// abortable between chunks); it then only saved the fstat() round trip.
 //
 // JS: const job = new ReadFileJob(path, flags, limit, trackFd);
 //     job.ondone = (err, buffer, fd, size, closeErr) => {...}; job.run(path);
 // Exactly one of these outcomes is reported:
 //   err            -- open/fstat/read failed (any fd opened here was closed);
-//   fd >= 0, size  -- file is larger than `limit`: caller owns fd now (it is
-//                     registered as an unmanaged fd iff trackFd, i.e. when the
-//                     caller will close it through fs.close() rather than a
-//                     FileHandle);
+//   fd >= 0, size  -- file is larger than `limit`, or not a regular file and
+//                     size is 0: caller owns fd now (it is registered as an
+//                     unmanaged fd iff trackFd, i.e. when the caller will
+//                     close it through fs.close() rather than a FileHandle);
 //   buffer         -- the whole content; closeErr set if only close() failed.
 class ReadFileJob final : public AsyncWrap, public ThreadPoolWork {
  public:
@@ -3689,8 +3664,9 @@ class ReadFileJob final : public AsyncWrap, public ThreadPoolWork {
     const uint64_t size = regular ? static_cast<uint64_t>(st->st_size) : 0;
     uv_fs_req_cleanup(&req);
 
-    if (size > limit_) {
-      // Too large to read in one go here: hand the fd back.
+    if (size > limit_ || !regular) {
+      // Too large to read in one go here, or possibly endless: hand the fd
+      // back.
       fd_ = fd;
       size_ = size;
       return;
@@ -4669,8 +4645,10 @@ static void CpSyncCheckPaths(const FunctionCallbackInfo<Value>& args) {
   auto dest_path_str = ConvertPathToUTF8(dest_path);
 
   if (!error_code) {
-    // Check if src and dest are identical.
-    if (std::filesystem::equivalent(src_path, dest_path)) {
+    // Check if src and dest are identical. A dangling dest symlink makes
+    // equivalent() fail, which means they are not the same file.
+    std::error_code equivalent_error;
+    if (std::filesystem::equivalent(src_path, dest_path, equivalent_error)) {
       static constexpr const char* message =
           "src and dest cannot be the same %s";
       return THROW_ERR_FS_CP_EINVAL(env, message, dest_path_str);
