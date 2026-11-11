@@ -832,6 +832,7 @@ class Http2Session : public AsyncWrap,
     uint64_t total = current_session_memory_ + sizeof(Http2Session);
     total += current_nghttp2_memory_;
     total += outgoing_storage_.size();
+    total += outgoing_buffers_.size() * sizeof(NgHttp2StreamWrite);
     return total;
   }
 
