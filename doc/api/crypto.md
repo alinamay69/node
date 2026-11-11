@@ -2967,6 +2967,11 @@ be passed instead of a public key.
 
 <!-- YAML
 added: v15.6.0
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/67408
+    description: Required field conversion, certificate encoding, fingerprint
+                 calculation, and AIA or EKU decoding failures now throw.
 -->
 
 Encapsulates an X509 certificate and provides read-only access to
@@ -3144,6 +3149,10 @@ if (!x509.verify(otherCert.publicKey)) {
 
 <!-- YAML
 added: v15.6.0
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/67408
+    description: Unsupported key comparisons and comparison errors now throw.
 -->
 
 * `privateKey` {KeyObject} A private key.
@@ -3151,6 +3160,10 @@ added: v15.6.0
 
 Checks whether the public key for this certificate is consistent with
 the given private key.
+
+Returns `false` if the keys do not match. Throws
+`ERR_CRYPTO_UNSUPPORTED_OPERATION` if the keys cannot be compared,
+or `ERR_CRYPTO_OPERATION_FAILED` if the comparison cannot be completed.
 
 ### `x509.extensions`
 
@@ -3203,6 +3216,8 @@ added: v15.6.0
 
 The SHA-1 fingerprint of this certificate.
 
+Throws if the fingerprint cannot be calculated.
+
 Because SHA-1 is cryptographically broken and because the security of SHA-1 is
 significantly worse than that of algorithms that are commonly used to sign
 certificates, consider using [`x509.fingerprint256`][] instead.
@@ -3217,6 +3232,8 @@ added: v15.6.0
 
 The SHA-256 fingerprint of this certificate.
 
+Throws if the fingerprint cannot be calculated.
+
 ### `x509.fingerprint512`
 
 <!-- YAML
@@ -3228,6 +3245,8 @@ added:
 * Type: {string}
 
 The SHA-512 fingerprint of this certificate.
+
+Throws if the fingerprint cannot be calculated.
 
 Because computing the SHA-256 fingerprint is usually faster and because it is
 only half the size of the SHA-512 fingerprint, [`x509.fingerprint256`][] may be
@@ -3248,10 +3267,11 @@ changes:
                  in response to CVE-2021-44532.
 -->
 
-* Type: {string}
+* Type: {string|undefined}
 
 A textual representation of the certificate's authority information access
-extension.
+extension, or `undefined` if the extension is absent. Throws if the extension
+cannot be decoded or formatted.
 
 This is a line feed separated list of access descriptions. Each line begins with
 the access method and the kind of the access location, followed by a colon and
@@ -3272,6 +3292,8 @@ added: v15.6.0
 * Type: {string}
 
 The issuer identification included in this certificate.
+
+Throws if the issuer name cannot be formatted.
 
 ### `x509.issuerCertificate`
 
@@ -3330,9 +3352,10 @@ issuer name cannot be inspected.
 added: v15.6.0
 -->
 
-* Type: {string\[]}
+* Type: {string\[]|undefined}
 
-An array detailing the key extended usages for this certificate.
+An array of extended key usage OIDs, or `undefined` if the extension is absent.
+Throws if the extension cannot be decoded or an OID cannot be formatted.
 
 ### `x509.publicKey`
 
@@ -3354,6 +3377,8 @@ added: v15.6.0
 
 A `Buffer` containing the DER encoding of this certificate.
 
+Throws if the certificate cannot be encoded.
+
 ### `x509.serialNumber`
 
 <!-- YAML
@@ -3363,6 +3388,8 @@ added: v15.6.0
 * Type: {string}
 
 The serial number of this certificate.
+
+Throws if the serial number cannot be formatted.
 
 Serial numbers are assigned by certificate authorities and do not uniquely
 identify certificates. Consider using [`x509.fingerprint256`][] as a unique
@@ -3377,6 +3404,8 @@ added: v15.6.0
 * Type: {string}
 
 The complete subject of this certificate.
+
+Throws if the subject name cannot be formatted.
 
 ### `x509.subjectAltName`
 
@@ -3486,6 +3515,8 @@ There is no standard JSON encoding for X509 certificates. The
 `toJSON()` method returns a string containing the PEM encoded
 certificate.
 
+Throws if the certificate cannot be encoded.
+
 ### `x509.toLegacyObject()`
 
 <!-- YAML
@@ -3497,6 +3528,10 @@ added: v15.6.0
 Returns information about this certificate using the legacy
 [certificate object][] encoding.
 
+Throws if a required field conversion, Authority Information Access or Extended
+Key Usage decoding, fingerprint calculation, or certificate encoding fails.
+Optional public key fields may be omitted as described in the legacy encoding.
+
 ### `x509.toString()`
 
 <!-- YAML
@@ -3507,6 +3542,8 @@ added: v15.6.0
 
 Returns the PEM-encoded certificate.
 
+Throws if the certificate cannot be encoded.
+
 ### `x509.validFrom`
 
 <!-- YAML
@@ -3516,6 +3553,8 @@ added: v15.6.0
 * Type: {string}
 
 The date/time from which this certificate is valid.
+
+Throws if the time cannot be converted or formatted.
 
 ### `x509.validFromDate`
 
@@ -3529,6 +3568,8 @@ added:
 
 The date/time from which this certificate is valid, encapsulated in a `Date` object.
 
+Throws if the time cannot be converted.
+
 ### `x509.validTo`
 
 <!-- YAML
@@ -3538,6 +3579,8 @@ added: v15.6.0
 * Type: {string}
 
 The date/time until which this certificate is valid.
+
+Throws if the time cannot be converted or formatted.
 
 ### `x509.validToDate`
 
@@ -3550,6 +3593,8 @@ added:
 * Type: {Date}
 
 The date/time until which this certificate is valid, encapsulated in a `Date` object.
+
+Throws if the time cannot be converted.
 
 ### `x509.signature`
 
@@ -3615,6 +3660,8 @@ added: v24.9.0
 
 The OID of the algorithm used to sign the certificate.
 
+Throws if the OID cannot be formatted.
+
 ### `x509.version`
 
 <!-- YAML
@@ -3630,6 +3677,10 @@ v3. A certificate with no encoded version field has version `1`.
 
 <!-- YAML
 added: v15.6.0
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/67408
+    description: Errors reported separately from verification failure now throw.
 -->
 
 * `publicKey` {KeyObject} A public key.
@@ -3637,6 +3688,11 @@ added: v15.6.0
 
 Verifies that this certificate was signed by the given public key.
 Does not perform any other validation checks on the certificate.
+
+Returns `true` for a valid signature and `false` for a verification failure or
+an incompatible key type. A signature BIT STRING with invalid unused bits also
+returns `false`. Throws for other errors reported separately from verification
+failure.
 
 ## `node:crypto` module methods and properties
 
