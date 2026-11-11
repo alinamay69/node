@@ -2969,7 +2969,7 @@ be passed instead of a public key.
 added: v15.6.0
 changes:
   - version: REPLACEME
-    pr-url: https://github.com/nodejs/node/pull/REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/67408
     description: Required field conversion, certificate encoding, fingerprint
                  calculation, and AIA or EKU decoding failures now throw.
 -->
@@ -3151,7 +3151,7 @@ if (!x509.verify(otherCert.publicKey)) {
 added: v15.6.0
 changes:
   - version: REPLACEME
-    pr-url: https://github.com/nodejs/node/pull/REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/67408
     description: Unsupported key comparisons and comparison errors now throw.
 -->
 
@@ -3679,7 +3679,7 @@ v3. A certificate with no encoded version field has version `1`.
 added: v15.6.0
 changes:
   - version: REPLACEME
-    pr-url: https://github.com/nodejs/node/pull/REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/67408
     description: Errors reported separately from verification failure now throw.
 -->
 
