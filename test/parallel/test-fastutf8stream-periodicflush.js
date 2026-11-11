@@ -65,15 +65,12 @@ function runTests(sync) {
     assert.ok(stream.write('hello world\n'));
 
     // Manually flush to test that data can be written
-    stream.flush(common.mustSucceed());
-
-    setTimeout(common.mustCall(() => {
+    stream.flush(common.mustSucceed(() => {
+      stream.destroy();
       readFile(dest, 'utf8', common.mustSucceed((data) => {
         assert.strictEqual(data, 'hello world\n');
       }));
-    }), 500);
-
-    stream.destroy();
+    }));
   }
 
   {
